@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "Windows x64 GCC Debug",
+            "includePath": [
+                "${workspaceFolder}/include",
+                "C:/Program Files/gcc/include/c++/12.2.0"
+            ],
+            "defines": [],
+            "compilerPath": "C:\\Program Files\\gcc\\bin\\gcc.exe",
+            "cStandard": "c11",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

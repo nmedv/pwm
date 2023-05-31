@@ -1,0 +1,17 @@
+{
+	"configurations": [
+		{
+			"name": "GDB Debug",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}\\bin\\pwm.exe",
+			"args": ["-r", "name", "--source"],
+			"stopAtEntry": false,
+			"cwd": "${fileDirname}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"miDebuggerPath": "C:\\Program Files\\gcc\\bin\\gdb.exe"
+		}
+	]
+}
