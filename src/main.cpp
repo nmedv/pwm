@@ -1,43 +1,65 @@
 #include <cstdio>
-#include <string.h>
-#include <pwm.h>
-#include <aes.h>
-#include <openssl/conf.h>
-#include <openssl/evp.h>
+#include <memory>
+
+#include <pwm/pwm.h>
+
+
+int pwm_main(pwm_args& args)
+{
+	if (args.info)
+		return 1;
+
+	char* password = (char*)calloc(0, PWM_MAX_MASTER_PASSWORD_SIZE);
+	pwm_passw_input(password);
+
+	auto pwm = Pwm();
+
+	if (!pwm.load(args.source, password)) {
+		if (file.signature != 0)
+		{
+			fprintf(stderr, "pwm: error: file corrupted: '%s'\n", args.source);
+			return 0;
+		}
+		
+		if (args.remove || !args.value)
+		{
+			fprintf(stderr, "pwm: error: can't open file: '%s'\n", args.source);
+			return 0;
+		}
+			
+		std::map<std::string, std::string> entries;
+		entries[std::string(args.name)] = std::string(args.value);
+		
+		pwm_save(entries, password, file);
+		pwm_write(file, args.source);
+		free(password);
+
+		return 1;
+	}
+
+	char* password = (char*)calloc(0, PWM_MAX_MASTER_PASSWORD_SIZE);
+	pwm_passw_input(password);
+
+	std::map<std::string, std::string> entries;
+	if (!pwm_load(file, password, entries))
+	{
+		fprintf(stderr, "pwm: error: wrong password or data corrupted");
+		return 0;
+	}
+
+	free(password);
+
+	return 1;
+}
+
 
 int main(int argc, char* argv[])
 {
-	// pwm_args args = {};
+	pwm_args args = {};
+	if (!pwm_parse_args(argc, argv, args))
+		return 1;
 
-	// int res
-
-	// if (!pwm_parse_args(argc, argv, &args))
-	// 	return 1;
-
-	// if (!args.info)
-	// {
-	// 	printf("\nremove: %d\n", args.remove);
-	// 	printf("name: %s\n", args.name);
-	// 	printf("password: %s\n", args.password);
-	// 	printf("source: %s\n", args.source);
-	// 	printf("force: %d\n", args.force);
-	// }
-
-	unsigned char *plaintext =
-		(unsigned char *)"The quick brown fox jumps over the lazy dog";
-	int plaintext_size = strlen((char*)plaintext);
-
-	// int decryptedtext_size = AES256_DECRYPT_SIZE(cipher_len);
-	// unsigned char* decryptedtext = (unsigned char*)malloc(decryptedtext_size);
-	// int decrypted_len = AES_decrypt(ciphertext, cipher_len, decryptedtext, key, iv);
-
-	// printf("Ciphertext is:\n%s\n", (char*)ciphertext_b64);
-
-	// cipher_len = b64decode(ciphertext_b64, cipher_len_b64, ciphertext);
-	
-	// decryptedtext[decrypted_len] = '\0';
-
-	// printf("Decrypted text is:\n%s\n", decryptedtext);
+	pwm_main(args);
 
 	return 0;
 }
