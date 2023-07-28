@@ -1,293 +1,360 @@
-#include <cstdio>
-#include <memory>
-#include <vector>
-#include <map>
-#include <string.h>
-
-#include <pwm/pwm_getopt.h>
-#include <pwm/pwm_crypto.h>
 #include <pwm/pwm.h>
+#include <pwm/pwm_error.h>
+
+#include <openssl/conf.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+
+#include <fstream>
 
 
-static const char* pwm_version = "pwm version 0.1 beta";
-static const char* pwm_usage = "pwm name [value] [options]";
-static const char* pwm_args_help[] = {
-	"Password manager\n\n",
+/*
+	We use AES with 256 bit key (16 byte cipher block).
+	So we need at least n + 16 (including \0) bytes to
+	store out cipher data.
+	  n - size of plain data (in bytes)
+*/
+#define AES256_ENCRYPT_SIZE(n) n + 16
+#define AES256_DECRYPT_SIZE(n) n + 16
 
-	"options:\n",
-	"  -h, --help       Print help and exit\n",
-	"  -v, --version    Print version and exit\n",
-	"  -r, --remove     Remove password  (default=off)\n",
-	"  -s, --source     Data file  (default=\"data.pw\")\n",
-	"  -f, --force      Suppres warnings  (default=off)\n",
-	0
-};
-static const char* options = ":hvrs:f";
-static const option long_options[] =
+#define PWM_HEADER_SIZE reinterpret_cast<int>(&(reinterpret_cast<pwm_file*>(0)->cipher))
+
+
+PwmFile::PwmFile()
 {
-	{"help",	0, 0, 'h'},
-	{"version",	0, 0, 'v'},
-	{"remove",	0, 0, 'r'},
-	{"source",	1, 0, 's'},
-	{"force",	0, 0, 'f'},
-	{0,			0, 0,  0 }
-};
+	Resize(PWM_HEADER_SIZE);
+	data->sigP = 'P';
+	data->sigW = 'W';
+}
 
 
-int pwm_parse_args(int argc, char* argv[], pwm_args& pwm_args)
+int PwmFile::Load(const char *fileName)
 {
-	char opt;
-	int longindex;
-	int i = 0;
+	// Open file
+	std::ifstream file(fileName, std::ios::binary);
+	if (!file.is_open())
+		return PwmSetError(PWM_NO_FILE, "can't open file \"%s\"", fileName);
 
-	while ((opt = getopt_long(argc, argv, options,
-		long_options, &longindex)) != -1) {
-		switch (opt) {
-		case 'h':
-			printf("usage: %s\n\n", pwm_usage);
-			while (pwm_args_help[i] != 0)
-				printf(pwm_args_help[i++]);
-			pwm_args.info = 1;
-			return 1;
-		case 'v':
-			printf("%s\n", pwm_version);
-			pwm_args.info = 1;
-			return 1;
-		case 'r': pwm_args.remove = 1; break;
-		case 's': pwm_args.source = optarg; break;
-		case 'f': pwm_args.force = 1; break;
-		case '?':
-			if (optopt)
-				fprintf(stderr,
-					"pwm: error: unknown option '-%c'\n",
-					optopt);
-			else
-				fprintf(stderr,
-					"pwm: error: unknown option \"%s\"\n",
-					argv[optind - 1]);
-			return 0;
-		case ':':
-			fprintf(stderr,
-				"pwm: error: option '-%c' requires an argument\n",
-				optopt);
-			return 0;
-		case '*':
-			if (!pwm_args.name)
-				pwm_args.name = argv[argind];
-			else if (!pwm_args.value)
-				pwm_args.value = argv[argind];
-			else
-			{
-				fprintf(stderr,
-					"pwm: error: unknown no-option argument '-%s'\n",
-					argv[argind]);
-				return 0;
-			}
-			break;
-		default: return 0;
-		}
-	}
-
-	if (!pwm_args.name)
+	// Read file header
+	Resize(PWM_HEADER_SIZE);
+	file.read(reinterpret_cast<char*>(data), PWM_HEADER_SIZE);
+	if (file.bad() || data->sigP != 'P' || data->sigW != 'W') // Check signature
 	{
-		printf("usage: %s\n", pwm_usage);
-		fprintf(stderr, "pwm: error: 'name' argument is required\n");
-		return 0;
+		file.close();
+		return PwmSetError(PWM_BAD_FILE, "\"%s\" is not pwm data file", fileName);
 	}
 
-	if (!pwm_args.source)
-		pwm_args.source = (char*)"data.pw";
+	// Read cipher data
+	Resize(PWM_HEADER_SIZE + data->cipher_len);
+	file.read(reinterpret_cast<char*>(&data->cipher), data->cipher_len);
+	int success = file.good();
+	file.close();
+
+	if (!success)
+		return PwmSetError(PWM_BAD_FILE, "error while reading file \"%s\": data corrupted", fileName);
 
 	return 1;
 }
 
 
-extern "C" void SetStdinEcho(bool enable);
-void pwm_passw_input(char* out)
+int PwmFile::Save(const char *fileName)
 {
-	SetStdinEcho(false);
-	printf("Enter the password: ");
-	scanf("%32s", out);
-	SetStdinEcho(true);
+	// Open file (or create file)
+	std::ofstream file(fileName, std::ios::binary);
+
+	// Write data to file
+	file.write(reinterpret_cast<char*>(data), PWM_HEADER_SIZE + data->cipher_len);
+	int success = file.good();
+	file.close();
+
+	if (!success)
+		return PwmSetError(PWM_BAD_FILE, "error while writing file \"%s\"", fileName);
+
+	return 1;
 }
 
 
-static size_t mapSize(const std::map<std::string, std::string>& map)
+void PwmFile::Resize(size_t size)
 {
-	// Table size
-	size_t size = map.size() * 2 + sizeof(size_t);
+	dataRaw.resize(size);
+	data = reinterpret_cast<pwm_file*>(dataRaw.data());
+}
 
-	// Map size
-	for (auto const &pair : map)
+
+//PwmFileHandler::PwmFileHandler()
+//{ }
+
+
+/*
+	Pwm data table format:
+
+	Offset                      Size (in bytes)        Header name
+	-----------------------------------------------------------------
+	0                           4                      Table size
+	4                           1                      Key #1 size
+	5                           1                      Value #1 size
+	6                           1                      Key #2 size
+	7                           1                      Value #2 size
+	...                         ...                    ...
+	Table size - 2              1                      Key #n size
+	Table size - 1              1                      Value #n size
+	Table size                  Key size #1            Key #1
+	Table size + Key size #1    Value size #1          Value #1
+	...                         ...                    ...
+	...                         Key #n size            Key #n
+	...                         Value #n size          Value #n
+*/
+
+
+void PwmFileHandler::Serialize(std::vector<uint8_t> &out, std::map<std::string, std::string> &in)
+{
+	// Find out the serialize size
+	uint32_t serializeSize = in.size() * 4 + sizeof(uint32_t);
+	for (auto const& pair : in)
 	{
-		size += pair.first.size();
-		size += pair.second.size();
+		serializeSize += pair.first.size();
+		serializeSize += pair.second.size();
 	}
 
-	return size;
-}
+	out.resize(serializeSize);
 
-
-
-
-Pwm::Pwm(void)
-{
-	saltSize = 0;
-	salt = (uint8_t*)malloc(8);
-	eSize = 0;
-	eData = (uint8_t*)malloc(32);
-	data = (uint8_t*)malloc(32);
-	keyIv = (uint8_t*)malloc(24);
-}
-
-
-Pwm::Pwm(const char* src, const char* password)
-{
-	Pwm();
-	load(src, password);
-}
-
-
-Pwm::~Pwm(void)
-{
-	free(salt);
-	free(eData);
-	free(data);
-	free(keyIv);
-}
-
-
-int Pwm::load(const char* src, const char* password)
-{
-	if (!read(src))
-		return 0;
-
-	genkeyiv(password, salt, saltSize, keyIv);
-
-	dataSize = AES256_DECRYPT_SIZE(eSize);
-	data = (uint8_t*)realloc(data, dataSize);
-	dataSize = aes_decrypt(eData, eSize, data, keyIv, keyIv + 16);
-	if (!dataSize)
-		return 0;
-
-	deserialize();
-
-	return 1;
-}
-
-
-int Pwm::save(const char* fname, const char* password)
-{
-	if (!saltSize)
-		saltSize = 8;
-	salt = (uint8_t*)realloc(salt, saltSize);
-
-	gensalt(salt, saltSize);
-	genkeyiv(password, salt, saltSize, keyIv);
-
-	dataSize = mapSize(entries);
-	data = (uint8_t*)realloc(data, dataSize);
-	serialize();
-
-	eSize = AES256_ENCRYPT_SIZE(dataSize);
-	eData = (uint8_t*)realloc(eData, eSize);
-	eSize = aes_encrypt(data, dataSize, eData, keyIv, keyIv + 16);
-
-	if (!eSize || !write(fname))
-		return 0;
-
-	return 1;
-}
-
-
-int Pwm::read(const char* src)
-{
-	int filePtr = 0;
-	uint16_t sig;
-
-	FILE* file = fopen(src, "r");
-	if (!file)
-		return 0;
-
-	filePtr += fread(&sig, sizeof(sig), 1, file);
-	if (sig != 0x5057)
-		return 0;
-
-	filePtr += fread(&saltSize, sizeof(saltSize), 1, file);
-	salt = (uint8_t*)realloc(salt, saltSize);
-	filePtr += fread(salt, saltSize, 1, file);
-
-	filePtr += fread(&eSize, sizeof(eSize), 1, file);
-	eData = (uint8_t*)realloc(eData, eSize);
-	filePtr += fread(eData, 1, eSize, file);
-
-	fclose(file);
-
-	if (filePtr != sizeof(sig) + sizeof(saltSize) + sizeof(eSize) +
-		saltSize + eSize)
-		return 0;
-
-	return 1;
-}
-
-
-int Pwm::write(const char* fname)
-{
-	int filePtr = 0;
-	uint16_t sig = 0x5057;
-
-	FILE* file = fopen(fname, "w");
-	if (!file)
-		return 0;
-
-	filePtr += fwrite(&sig, sizeof(sig), 1, file);
-	filePtr += fwrite(&saltSize, sizeof(saltSize), 1, file);
-	filePtr += fwrite(salt, saltSize, 1, file);
-	filePtr += fwrite(&eSize, sizeof(eSize), 1, file);
-	filePtr += fwrite(eData, eSize, 1, file);
-
-	if (filePtr != sizeof(sig) + sizeof(saltSize) + sizeof(eSize) +
-		saltSize + eSize)
-		return 0;
-
-	return 1;
-}
-
-
-void Pwm::serialize(void)
-{
-	size_t tableSize = entries.size() * 2;
-	*(size_t*)data = tableSize;
-	uint8_t* table = data + sizeof(size_t);
+	uint32_t tableSize = in.size() * 2;
+	*reinterpret_cast<uint32_t*>(out.data()) = tableSize;
+	uint8_t* table = out.data() + sizeof(uint32_t);
 	uint8_t* data_ptr = table + tableSize;
 
-	for (auto const& pair : entries)
+	for (auto const& pair : in)
 	{
-		*table++ = (uint8_t)pair.first.size();
-		*table++ = (uint8_t)pair.second.size();
+		*table++ = static_cast<uint8_t>(pair.first.size());
+		*table++ = static_cast<uint8_t>(pair.second.size());
 
 		strcpy((char*)data_ptr, pair.first.c_str());
-		data_ptr += pair.first.size();
+		data_ptr += pair.first.size() + 1;
 		strcpy((char*)data_ptr, pair.second.c_str());
-		data_ptr += pair.second.size();
+		data_ptr += pair.second.size() + 1;
 	}
 }
 
 
-void Pwm::deserialize(void)
+void PwmFileHandler::Deserialize(std::vector<uint8_t> &in, std::map<std::string, std::string> &out)
 {
 	char* name;
 	char* value;
-	size_t tableSize = *(size_t*)data;
-	uint8_t* table = data + sizeof(size_t);
+	uint32_t tableSize = *reinterpret_cast<uint32_t*>(in.data());
+	uint8_t* table = in.data() + sizeof(uint32_t);
 	uint8_t* data_ptr = table + tableSize;
-	
-	for (size_t i = 0; i < tableSize; i += 2)
+
+	for (uint32_t i = 0; i < tableSize; i += 2)
 	{
 		name = (char*)data_ptr;
-		data_ptr += table[i];
+		data_ptr += table[i] + 1;
 		value = (char*)data_ptr;
-		data_ptr += table[i + 1];
-		entries[std::string(name, table[i])] = std::string(value, table[i + 1]);
+		data_ptr += table[i + 1] + 1;
+		out[std::string(name, table[i])] = std::string(value, table[i + 1]);
 	}
+}
+
+
+int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char *password)
+{
+	// Generate sault
+	RAND_bytes(file->data->salt, 8);
+
+	// Generate key and iv from password and sault
+	uint8_t* key = new uint8_t[24];
+	uint8_t* iv = key + 16;
+	PKCS5_PBKDF2_HMAC_SHA1(password, strlen(password), file->data->salt, 8, 1000, 24, key);
+
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+	if (!ctx || !EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
+	{
+		ERR_print_errors_fp(stderr);
+		return 0;
+	}
+
+	file->Resize(PWM_HEADER_SIZE + AES256_ENCRYPT_SIZE(in.size()));
+	int len;
+
+	if (!EVP_EncryptUpdate(ctx, &file->data->cipher, &len, in.data(), in.size()))
+	{
+		// ERR_print_errors_fp(stderr);
+		return 0;
+	}
+
+	file->data->cipher_len = len;
+
+	if (!EVP_EncryptFinal_ex(ctx, &file->data->cipher + len, &len))
+	{
+		// ERR_print_errors_fp(stderr);
+		return 0;
+	}
+
+	file->data->cipher_len += len;
+
+	EVP_CIPHER_CTX_free(ctx);
+	delete key;
+
+	return 1;
+}
+
+
+int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char *password)
+{
+	// Generate key and iv from password and sault
+	uint8_t* key = new uint8_t[24];
+	uint8_t* iv = key + 16;
+	PKCS5_PBKDF2_HMAC_SHA1(password, strlen(password), file->data->salt, 8, 1000, 24, key);
+
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+	if (!ctx || !EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
+	{
+		ERR_print_errors_fp(stderr);
+		return 0;
+	}
+
+	out.resize(AES256_DECRYPT_SIZE(file->data->cipher_len));
+	int len;
+	int plain_len;
+
+	if (!EVP_DecryptUpdate(ctx, out.data(), &len, &file->data->cipher, file->data->cipher_len))
+	{
+		// ERR_print_errors_fp(stderr);
+		return 0;
+	}
+
+	plain_len = len;
+
+	if (!EVP_DecryptFinal_ex(ctx, out.data() + len, &len))
+	{
+		// ERR_print_errors_fp(stderr);
+		return 0;
+	}
+
+	plain_len += len;
+	out.resize(plain_len);
+
+	EVP_CIPHER_CTX_free(ctx);
+	delete key;
+
+	return 1;
+}
+
+
+Pwm::Pwm(void)
+	: is_loaded(false), has_changes(false)
+{ }
+
+
+Pwm::Pwm(const char *src, const char *password) : Pwm()
+{
+	Load(src, password);
+}
+
+
+int Pwm::Load(const char *src, const char *password)
+{
+	// Read file
+	if (!file.Load(src))
+		return 0;
+
+	// Decrypt data
+	if (!PwmFileHandler::Decrypt(data, &file, password))
+		return PwmSetError(PWM_BAD_DECRYPT, "wrong password or data corrupted");
+
+	// Deserialize data
+	PwmFileHandler::Deserialize(data, entries);
+
+	is_loaded = true;
+	return 1;
+}
+
+
+bool Pwm::Loaded(void)
+{
+	return is_loaded;
+}
+
+
+int Pwm::Save(const char *fname, const char *password)
+{
+	// Can't save empty data
+	if (entries.size() == 0)
+		return PwmSetError(PWM_BAD_DATA, "no data to save");
+
+	// Create new file
+	if (!is_loaded)
+		file = PwmFile();
+
+	// Serialize data
+	if (has_changes)
+		PwmFileHandler::Serialize(data, entries);
+
+	// Encrypt data
+	if (!PwmFileHandler::Encrypt(data, &file, password))
+		return PwmSetError(PWM_BAD_ENCRYPT, "can't encrypt data");
+
+	// Save data to file
+	int res = file.Save(fname);
+
+	is_loaded = false;
+	has_changes = false;
+
+	if (!res)
+		return 0;
+
+	return 1;
+}
+
+
+int Pwm::Set(std::string &name, std::string &value)
+{
+	if (name.size() > 256 || value.size() > 256)
+		return PwmSetError(PWM_BAD_NAME, "string value is too large");
+
+	if (Has(name))
+		return PwmSetError(PWM_BAD_NAME, "entry with name \"%s\" already exists", name.c_str());
+	else
+	{
+		entries[name] = value;
+		has_changes = true;
+		return 1;
+	}
+}
+
+
+int Pwm::Has(std::string &name)
+{
+	return !(entries.find(name) == entries.end());
+}
+
+
+int Pwm::Remove(std::string &name)
+{
+	if (entries.size() == 1)
+		return PwmSetError(PWM_BAD_NAME, "can't remove last entry with name \"%s\"", name.c_str());
+
+	if (!entries.erase(name))
+		return PwmSetError(PWM_BAD_NAME, "can't remove entry with name \"%s\"", name.c_str());
+	else
+	{
+		has_changes = true;
+		return 1;
+	}
+}
+
+
+const std::map<std::string, std::string>* Pwm::Get(void)
+{
+	return &entries;
+}
+
+
+const std::string* Pwm::Get(std::string &name)
+{
+	if (Has(name))
+		return &entries[name];
+	else
+		return reinterpret_cast<std::string*>(
+			PwmSetError(PWM_BAD_NAME, "can't find entry with name \"%s\"", name.c_str()));
 }

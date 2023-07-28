@@ -19,33 +19,38 @@
 			}
 		},
 		{
-			"name": "win32_mingw_debug",
-			"inherits": "debug",
-			"displayName": "Windows x32 MinGW Debug",
-			"generator": "MinGW Makefiles",
-			"architecture": {
-				"value": "x86",
-				"strategy": "external"
-			},
-			"environment": {
-				"PATH": "$penv{PATH};C:\\MinGW\\bin"
-			},
+			"name": "release",
+			"inherits": "basic",
+			"hidden": true,
 			"cacheVariables": {
-				"CMAKE_C_COMPILER": "gcc",
-				"CMAKE_CXX_COMPILER": "g++",
-				"CMAKE_MAKE_PROGRAM": "mingw32-make"
+				"CMAKE_BUILD_TYPE": "Release"
 			}
 		},
 		{
-			"name": "win32_msvc_debug",
-			"inherits": "debug",
-			"displayName": "Windows x32 MSVC Debug",
+			"name": "vc",
+			"inherits": "basic",
+			"hidden": true,
 			"generator": "Visual Studio 17 2022",
 			"cacheVariables": {
 				"CMAKE_GENERATOR": "Visual Studio 17 2022",
-				"CMAKE_GENERATOR_PLATFORM": "Win32",
 				"CMAKE_C_COMPILER": "cl",
 				"CMAKE_CXX_COMPILER": "cl"
+			}
+		},
+		{
+			"name": "cmake_vc32_debug",
+			"inherits": ["debug", "vc"],
+			"displayName": "Visual C/C++ Win32 Debug",
+			"cacheVariables": {
+				"CMAKE_GENERATOR_PLATFORM": "Win32"
+			}
+		},
+		{
+			"name": "cmake_vc64_debug",
+			"inherits": ["debug", "vc"],
+			"displayName": "Visual C/C++ x64 Debug",
+			"cacheVariables": {
+				"CMAKE_GENERATOR_PLATFORM": "x64"
 			}
 		}
 	]

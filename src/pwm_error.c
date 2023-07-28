@@ -1,17 +1,25 @@
-#include <stdarg.h>
 #include <pwm/pwm_error.h>
+#include <stdarg.h>
 #include <stdio.h>
 
-static char* errorBuffer;
-static size_t errorBufferCount;
+static pwm_error err;
 
-int pwm_error(const char* format, ...)
+int PwmSetError(int code, const char *format, ...)
 {
+	err.code = code;
+
 	if (!format)
 		return 0;
 
 	va_list ap;
 	va_start(ap, format);
-	int res = vsnprintf(errorBuffer, errorBuffer, format, ap);
+	vsnprintf(err.str, PWM_ERROR_MAX_STR_SIZE, format, ap);
 	va_end(ap);
+
+	return 0;
+}
+
+const pwm_error* PwmGetError(void)
+{
+	return &err;
 }
