@@ -1,22 +1,22 @@
 #include <pwm/pwm.h>
 #include <pwm/pwm_getopt.h>
 #include <pwm/pwm_error.h>
-#include <console/Console.h>
-
-
-Console* console;
+#include <pwm/pwm_console.h>
+#include <io.h>
+#include <fcntl.h>
+#include <locale.h>
 
 static const char* pwm_version = "pwm version 0.1 beta";
 static const char* pwm_usage = "pwm name [value] [options]";
 static const char* pwm_args_help[] = {
-	"Password manager\n\n",
+	"Password manager\n",
 
-	"options:\n",
-	"  -h, --help       Print help and exit\n",
-	"  -v, --version    Print version and exit\n",
-	"  -r, --remove     Remove password  (default=off)\n",
-	"  -s, --source     Data file  (default=\"data.pw\")\n",
-	"  -f, --force      Suppres warnings  (default=off)\n",
+	"options:",
+	"  -h, --help       Print help and exit",
+	"  -v, --version    Print version and exit",
+	"  -r, --remove     Remove password  (default=off)",
+	"  -s, --source     Data file  (default=\"data.pw\")",
+	"  -f, --force      Suppres warnings  (default=off)",
 	0
 };
 static const char* options = ":hvrs:f";
@@ -40,13 +40,13 @@ static int PwmParseArgs(int argc, char* argv[], pwm_args& pwm_args)
 	while ((opt = getopt_long(argc, argv, options, long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'h':
-			console->Printf("usage: %s\n\n", pwm_usage);
+			printf("usage: %s\n\n", pwm_usage);
 			while (pwm_args_help[i] != 0)
-				console->Write(pwm_args_help[i++]);
+				puts(pwm_args_help[i++]);
 			pwm_args.info = 1;
 			return 1;
 		case 'v':
-			console->Printf("%s\n", pwm_version);
+			puts(pwm_version);
 			pwm_args.info = 1;
 			return 1;
 		case 'r': pwm_args.remove = 1; break;
@@ -72,10 +72,7 @@ static int PwmParseArgs(int argc, char* argv[], pwm_args& pwm_args)
 	}
 
 	if (!pwm_args.name)
-	{
-		console->Printf("usage: %s\n", pwm_usage);
-		return PwmSetError(PWM_BAD_ARGS, "'name' argument is required\n");
-	}
+		return PwmSetError(PWM_BAD_ARGS, "usage: %s\n'name' argument is required\n", pwm_usage);
 
 	if (!pwm_args.source)
 		pwm_args.source = (char*)"data.pw";
@@ -86,25 +83,25 @@ static int PwmParseArgs(int argc, char* argv[], pwm_args& pwm_args)
 
 static inline int PwmPrintError()
 {
-	console->Printf("pwm: error: %s\n", PwmGetError()->str);
+	fprintf(stderr, "pwm: error: %s\n", PwmGetError()->str);
 	return 0;
 }
 
 
 static inline void PwmPasswordInput(char* out)
 {
-	console->SetStdinEcho(false);
-	console->Write("Enter the password: ");
-	console->Read(out, 32);
-	console->Write("\n");
-	console->SetStdinEcho(true);
+	setstdinecho(false);
+	fputs("Enter the password: ", stdout);
+	fgetmbs(out, 32, stdin);
+	fputs("\n", stdout);
+	// console->Write("\n");
+	setstdinecho(true);
 }
 
 
 int PwmMain(int argc)
 {
-	console = new Console();
-	char** argvU8 = const_cast<char**>(console->GetUTF8Argv());
+	char** argvU8 = mbargv();
 
 	pwm_args args = {};
 	if (!PwmParseArgs(argc, argvU8, args))
@@ -133,7 +130,7 @@ int PwmMain(int argc)
 			if (!strcmp(args.name, "*"))
 			{
 				for (auto pair : *pwm.Get())
-					console->Printf("%s: %s\n", pair.first.c_str(), pair.second.c_str());
+					printf("%s: %s\n", pair.first.c_str(), pair.second.c_str());
 
 				result = 1;
 			}
@@ -143,7 +140,7 @@ int PwmMain(int argc)
 				if (value.empty())
 					result = 0;
 				else
-					result = console->Printf("%s: %s", args.name, value.c_str());
+					result = printf("%s: %s", args.name, value.c_str());
 			}
 		}
 	}
@@ -161,7 +158,6 @@ int PwmMain(int argc)
 		result = 0;
 
 	delete password;
-	delete console;
 
 	return result;
 }
@@ -169,6 +165,14 @@ int PwmMain(int argc)
 
 int main(int argc, char* argv[])
 {
+	// Set stdout and stderr encoding to UTF-8
+	setlocale(LC_ALL, ".UTF8");
+
+	fflush(stdin);
+	_setmode(_fileno(stdin), _O_WTEXT);
+
+	
+
 	if (!PwmMain(argc))
 		return PwmGetError()->code;
 

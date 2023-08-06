@@ -18,7 +18,7 @@
 #define AES256_ENCRYPT_SIZE(n) n + 16
 #define AES256_DECRYPT_SIZE(n) n + 16
 
-#define PWM_HEADER_SIZE reinterpret_cast<int>(&(reinterpret_cast<pwm_file*>(0)->cipher))
+#define PWM_HEADER_SIZE reinterpret_cast<size_t>(&(reinterpret_cast<pwm_file*>(0)->cipher))
 
 
 PwmFile::PwmFile()
@@ -110,7 +110,7 @@ void PwmFile::Resize(size_t size)
 void PwmFileHandler::Serialize(std::vector<uint8_t> &out, std::map<std::string, std::string> &in)
 {
 	// Find out the serialize size
-	uint32_t serializeSize = in.size() * 4 + sizeof(uint32_t);
+	size_t serializeSize = in.size() * 4 + sizeof(uint32_t);
 	for (auto const& pair : in)
 	{
 		serializeSize += pair.first.size();
@@ -119,8 +119,8 @@ void PwmFileHandler::Serialize(std::vector<uint8_t> &out, std::map<std::string, 
 
 	out.resize(serializeSize);
 
-	uint32_t tableSize = in.size() * 2;
-	*reinterpret_cast<uint32_t*>(out.data()) = tableSize;
+	size_t tableSize = in.size() * 2;
+	*reinterpret_cast<uint32_t*>(out.data()) = static_cast<uint32_t>(tableSize);
 	uint8_t* table = out.data() + sizeof(uint32_t);
 	uint8_t* data_ptr = table + tableSize;
 
@@ -164,7 +164,7 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 	// Generate key and iv from password and sault
 	uint8_t* key = new uint8_t[24];
 	uint8_t* iv = key + 16;
-	PKCS5_PBKDF2_HMAC_SHA1(password, strlen(password), file->data->salt, 8, 1000, 24, key);
+	PKCS5_PBKDF2_HMAC_SHA1(password, (int)strlen(password), file->data->salt, 8, 1000, 24, key);
 
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if (!ctx || !EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
@@ -176,7 +176,7 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 	file->Resize(PWM_HEADER_SIZE + AES256_ENCRYPT_SIZE(in.size()));
 	int len;
 
-	if (!EVP_EncryptUpdate(ctx, &file->data->cipher, &len, in.data(), in.size()))
+	if (!EVP_EncryptUpdate(ctx, &file->data->cipher, &len, in.data(), (int)in.size()))
 	{
 		// ERR_print_errors_fp(stderr);
 		return 0;
@@ -204,7 +204,7 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 	// Generate key and iv from password and sault
 	uint8_t* key = new uint8_t[24];
 	uint8_t* iv = key + 16;
-	PKCS5_PBKDF2_HMAC_SHA1(password, strlen(password), file->data->salt, 8, 1000, 24, key);
+	PKCS5_PBKDF2_HMAC_SHA1(password, (int)strlen(password), file->data->salt, 8, 1000, 24, key);
 
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if (!ctx || !EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
@@ -355,6 +355,8 @@ const std::string* Pwm::Get(std::string &name)
 	if (Has(name))
 		return &entries[name];
 	else
-		return reinterpret_cast<std::string*>(
-			PwmSetError(PWM_BAD_NAME, "can't find entry with name \"%s\"", name.c_str()));
+	{
+		PwmSetError(PWM_BAD_NAME, "can't find entry with name \"%s\"", name.c_str());
+		return reinterpret_cast<std::string*>(0);
+	}		
 }

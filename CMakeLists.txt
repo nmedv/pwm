@@ -14,8 +14,7 @@ if (WIN32)
 	set(LIBS
 		"${CMAKE_CURRENT_SOURCE_DIR}/lib/win32/libcrypto.lib"
 		ws2_32.lib
-		crypt32.lib
-		"${CMAKE_CURRENT_SOURCE_DIR}/lib/win32/console.lib")
+		crypt32.lib)
 endif()
 
 # if (MINGW)
