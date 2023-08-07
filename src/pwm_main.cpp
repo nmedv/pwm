@@ -2,9 +2,14 @@
 #include <pwm/pwm_getopt.h>
 #include <pwm/pwm_error.h>
 #include <pwm/pwm_console.h>
+
+#define PWM_UTF8
+
+#ifdef PWM_UTF8
 #include <io.h>
 #include <fcntl.h>
 #include <locale.h>
+#endif
 
 static const char* pwm_version = "pwm version 0.1 beta";
 static const char* pwm_usage = "pwm name [value] [options]";
@@ -29,6 +34,32 @@ static const option long_options[] =
 	{"force",	0, 0, 'f'},
 	{0,			0, 0,  0 }
 };
+
+
+#ifdef _DEBUG
+static void _dumpmem(uint8_t* mem, int size, const char* title)
+{
+	if (title)
+		printf("%s:", title);
+	else
+	{
+		char format[32];
+		int addrsz = sizeof(mem) * 2 + 2;
+		sprintf(format, "Dump at %%#0%dx:", addrsz);
+		printf(format, mem);
+	}
+
+	for (int i = 0; i < size; i++)
+	{
+		if (i % 16 == 0)
+			fputs("\n  ", stdout);
+
+		printf("%02X ", (uint8_t)mem[i]);
+	}
+
+	fputs("\n", stdout);
+}
+#endif
 
 
 static int PwmParseArgs(int argc, char* argv[], pwm_args& pwm_args)
@@ -92,19 +123,28 @@ static inline void PwmPasswordInput(char* out)
 {
 	setstdinecho(false);
 	fputs("Enter the password: ", stdout);
+
+#ifdef PWM_UTF8
 	fgetmbs(out, 32, stdin);
-	//fgets(out, 32, stdin);
+#else
+	fgets(out, 32, stdin);
+#endif
+
 	fputs("\n", stdout);
 	setstdinecho(true);
 }
 
 
-int PwmMain(int argc)
+int PwmMain(int argc, char** argv)
 {
-	char** argvU8 = mbargv();
+#ifdef PWM_UTF8
+	char** _argv = mbargv();
+#else
+	char** _argv = argv;
+#endif
 
 	pwm_args args = {};
-	if (!PwmParseArgs(argc, argvU8, args))
+	if (!PwmParseArgs(argc, _argv, args))
 		return PwmPrintError();
 	if (args.info)
 		return 1;
@@ -116,6 +156,9 @@ int PwmMain(int argc)
 
 	char* password = new char[32];
 	PwmPasswordInput(password);
+#ifdef _DEBUG
+	_dumpmem((uint8_t*)password, 32, "password");
+#endif
 
 	int result;
 	Pwm pwm = Pwm(args.source, password);
@@ -136,11 +179,11 @@ int PwmMain(int argc)
 			}
 			else
 			{
-				value = *pwm.Get(name);
-				if (value.empty())
+				const std::string* value = pwm.Get(name);
+				if (!value)
 					result = 0;
 				else
-					result = printf("%s: %s", args.name, value.c_str());
+					result = printf("%s: %s", args.name, value->c_str());
 			}
 		}
 	}
@@ -162,7 +205,10 @@ int PwmMain(int argc)
 		result = 0;
 	
 	delete password;
-	mbargv_free(argc, argvU8);
+
+#ifdef PWM_UTF8
+	mbargv_free(argc, _argv);
+#endif
 
 	return result;
 }
@@ -170,13 +216,15 @@ int PwmMain(int argc)
 
 int main(int argc, char* argv[])
 {
+#ifdef PWM_UTF8
 	// Set stdout and stderr encoding to UTF-8
 	setlocale(LC_CTYPE, ".UTF8");
 
 	fflush(stdin);
 	_setmode(_fileno(stdin), _O_WTEXT);
+#endif
 
-	if (!PwmMain(argc))
+	if (!PwmMain(argc, argv))
 		return PwmGetError()->code;
 
 	return 0;

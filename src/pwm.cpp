@@ -14,12 +14,12 @@
 static void _dumpmem(uint8_t* mem, int size, const char* title)
 {
 	if (title)
-		printf("%s:", title);
+		printf("%s (%d bytes):", title, size);
 	else
 	{
 		char format[32];
 		int addrsz = sizeof(mem) * 2 + 2;
-		sprintf(format, "Dump at %%#0%dx:", addrsz);
+		sprintf(format, "Dump at %%#0%dx (%d bytes):", addrsz, size);
 		printf(format, mem);
 	}
 	
@@ -195,9 +195,11 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 	RAND_bytes(file->data->salt, 8);
 
 	// Generate key and iv from password and sault
-	uint8_t* key = new uint8_t[24];
-	uint8_t* iv = key + 16;
-	PKCS5_PBKDF2_HMAC_SHA1(password, (int)strlen(password), file->data->salt, 8, 1000, 24, key);
+	uint8_t* key = new uint8_t[48];
+	uint8_t* iv = key + 32;
+	PKCS5_PBKDF2_HMAC_SHA1(password, (int)strlen(password), file->data->salt, 8, 1000, 48, key);
+	DUMP(key, 32, "Key");
+	DUMP(iv, 16, "IV");
 
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if (!ctx || !EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
@@ -208,7 +210,8 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 
 	file->Resize(PWM_HEADER_SIZE + AES256_ENCRYPT_SIZE(in.size()));
 	int len;
-
+	
+	DUMP(in.data(), in.size(), "in");
 	if (!EVP_EncryptUpdate(ctx, &file->data->cipher, &len, in.data(), (int)in.size()))
 	{
 		OSSL_PRINTERROR
@@ -225,6 +228,8 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 
 	file->data->cipher_len += len;
 
+	DUMP(&file->data->cipher, file->data->cipher_len, "out");
+
 	EVP_CIPHER_CTX_free(ctx);
 	delete key;
 
@@ -235,9 +240,11 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char *password)
 {
 	// Generate key and iv from password and sault
-	uint8_t* key = new uint8_t[24];
-	uint8_t* iv = key + 16;
-	PKCS5_PBKDF2_HMAC_SHA1(password, (int)strlen(password), file->data->salt, 8, 1000, 24, key);
+	uint8_t* key = new uint8_t[48];
+	uint8_t* iv = key + 32;
+	PKCS5_PBKDF2_HMAC_SHA1(password, (int)strlen(password), file->data->salt, 8, 1000, 48, key);
+	DUMP(key, 32, "Key");
+	DUMP(iv, 16, "IV");
 
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if (!ctx || !EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
@@ -249,6 +256,8 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 	out.resize(AES256_DECRYPT_SIZE(file->data->cipher_len));
 	int len;
 	int plain_len;
+
+	DUMP(&file->data->cipher, file->data->cipher_len, "in");
 
 	if (!EVP_DecryptUpdate(ctx, out.data(), &len, &file->data->cipher, file->data->cipher_len))
 	{
@@ -266,6 +275,8 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 
 	plain_len += len;
 	out.resize(plain_len);
+
+	DUMP(out.data(), out.size(), "out");
 
 	EVP_CIPHER_CTX_free(ctx);
 	delete key;
