@@ -13,6 +13,8 @@ extern "C" {
 /* Get argv with UTF-8 encoding */
 char** mbargv(void);
 
+void mbargv_free(int argc, char** argv);
+
 char* fgetmbs(char* buffer, int bufferCount, FILE* stream);
 
 void setstdinecho(bool enable);

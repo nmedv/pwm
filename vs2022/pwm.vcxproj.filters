@@ -13,33 +13,36 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
     </Filter>
-    <Filter Include="Header Files\pwm">
-      <UniqueIdentifier>{11410a8c-9811-4127-86f0-c83956ee76cc}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\pwm_main.cpp">
+    <ClCompile Include="..\src\pwm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\pwm.cpp">
+    <ClCompile Include="..\src\pwm_main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\pwm_getopt.c">
+    <ClCompile Include="..\src\pwm_console.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\pwm_error.c">
+    <ClCompile Include="..\src\pwm_error.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\pwm_getopt.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\pwm\pwm_getopt.h">
-      <Filter>Header Files\pwm</Filter>
+    <ClInclude Include="..\include\pwm\pwm.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\pwm\pwm_error.h">
-      <Filter>Header Files\pwm</Filter>
+    <ClInclude Include="..\include\pwm\pwm_console.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\pwm\pwm.h">
-      <Filter>Header Files\pwm</Filter>
+    <ClInclude Include="..\include\pwm\pwm_error.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\pwm\pwm_getopt.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

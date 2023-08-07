@@ -9,6 +9,39 @@
 #include <fstream>
 
 
+#ifdef _DEBUG
+
+static void _dumpmem(uint8_t* mem, int size, const char* title)
+{
+	if (title)
+		printf("%s:", title);
+	else
+	{
+		char format[32];
+		int addrsz = sizeof(mem) * 2 + 2;
+		sprintf(format, "Dump at %%#0%dx:", addrsz);
+		printf(format, mem);
+	}
+	
+	for (int i = 0; i < size; i++)
+	{
+		if (i % 16 == 0)
+			fputs("\n  ", stdout);
+
+		printf("%02X ", (uint8_t)mem[i]);
+	}
+
+	fputs("\n", stdout);
+}
+
+#define DUMP(mem, sz, title) _dumpmem(mem, sz, title)
+#define OSSL_PRINTERROR ERR_print_errors_fp(stderr);
+#else
+#define DUMP(mem, sz, title)
+#define OSSL_PRINTERROR
+#endif
+
+
 /*
 	We use AES with 256 bit key (16 byte cipher block).
 	So we need at least n + 16 (including \0) bytes to
@@ -169,7 +202,7 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if (!ctx || !EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
 	{
-		ERR_print_errors_fp(stderr);
+		OSSL_PRINTERROR
 		return 0;
 	}
 
@@ -178,7 +211,7 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 
 	if (!EVP_EncryptUpdate(ctx, &file->data->cipher, &len, in.data(), (int)in.size()))
 	{
-		// ERR_print_errors_fp(stderr);
+		OSSL_PRINTERROR
 		return 0;
 	}
 
@@ -186,7 +219,7 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 
 	if (!EVP_EncryptFinal_ex(ctx, &file->data->cipher + len, &len))
 	{
-		// ERR_print_errors_fp(stderr);
+		OSSL_PRINTERROR
 		return 0;
 	}
 
@@ -209,7 +242,7 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if (!ctx || !EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), 0, key, iv))
 	{
-		ERR_print_errors_fp(stderr);
+		OSSL_PRINTERROR
 		return 0;
 	}
 
@@ -219,7 +252,7 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 
 	if (!EVP_DecryptUpdate(ctx, out.data(), &len, &file->data->cipher, file->data->cipher_len))
 	{
-		// ERR_print_errors_fp(stderr);
+		OSSL_PRINTERROR
 		return 0;
 	}
 
@@ -227,7 +260,7 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 
 	if (!EVP_DecryptFinal_ex(ctx, out.data() + len, &len))
 	{
-		// ERR_print_errors_fp(stderr);
+		OSSL_PRINTERROR
 		return 0;
 	}
 

@@ -30,7 +30,7 @@ char** mbargv(void)
 {
 	int argc;
 	wchar_t** argvW = CommandLineToArgvW(GetCommandLineW(), &argc);
-	char** argvU8 = (char**)malloc(argc);
+	char** argvU8 = (char**)malloc(argc * sizeof(char*));
 	for (int i = 0; i < argc; i++)
 	{
 		int argSize = SIZE_IN_CHAR(argvW[i]);
@@ -40,6 +40,15 @@ char** mbargv(void)
 	LocalFree(argvW);
 
 	return argvU8;
+}
+
+
+void mbargv_free(int argc, char** argv)
+{
+	for (int i = 0; i < argc; i++)
+		free(argv[i]);
+
+	free(argv);
 }
 
 

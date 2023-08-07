@@ -54,25 +54,25 @@ static int PwmParseArgs(int argc, char* argv[], pwm_args& pwm_args)
 		case 'f': pwm_args.force = 1; break;
 		case '?':
 			if (optopt)
-				return PwmSetError(PWM_BAD_ARGS, "unknown option '-%c'\n", optopt);
+				return PwmSetError(PWM_BAD_ARGS, "unknown option '-%c'", optopt);
 			else
-				return PwmSetError(PWM_BAD_ARGS, "unknown option \"%s\"\n", argv[optind - 1]);
+				return PwmSetError(PWM_BAD_ARGS, "unknown option \"%s\"", argv[optind - 1]);
 		case ':':
-			return PwmSetError(PWM_BAD_ARGS, "option '-%c' requires an argument\n", optopt);
+			return PwmSetError(PWM_BAD_ARGS, "option '-%c' requires an argument", optopt);
 		case '*':
 			if (!pwm_args.name)
 				pwm_args.name = argv[argind];
 			else if (!pwm_args.value)
 				pwm_args.value = argv[argind];
 			else
-				return PwmSetError(PWM_BAD_ARGS, "unknown no-option argument '-%s'\n", argv[argind]);
+				return PwmSetError(PWM_BAD_ARGS, "unknown no-option argument '-%s'", argv[argind]);
 			break;
 		default: return 0;
 		}
 	}
 
 	if (!pwm_args.name)
-		return PwmSetError(PWM_BAD_ARGS, "usage: %s\n'name' argument is required\n", pwm_usage);
+		return PwmSetError(PWM_BAD_ARGS, "'name' argument is required", pwm_usage);
 
 	if (!pwm_args.source)
 		pwm_args.source = (char*)"data.pw";
@@ -93,8 +93,8 @@ static inline void PwmPasswordInput(char* out)
 	setstdinecho(false);
 	fputs("Enter the password: ", stdout);
 	fgetmbs(out, 32, stdin);
+	//fgets(out, 32, stdin);
 	fputs("\n", stdout);
-	// console->Write("\n");
 	setstdinecho(true);
 }
 
@@ -152,12 +152,17 @@ int PwmMain(int argc)
 	if (result <= 0)
 		PwmPrintError();
 
-	if (result >= 0 && !pwm.Save(args.source, password))
-		result = PwmPrintError();
+	if (result >= 0)
+	{
+		result = pwm.Save(args.source, password);
+		if (!result)
+			PwmPrintError();
+	}
 	else
 		result = 0;
-
+	
 	delete password;
+	mbargv_free(argc, argvU8);
 
 	return result;
 }
@@ -166,12 +171,10 @@ int PwmMain(int argc)
 int main(int argc, char* argv[])
 {
 	// Set stdout and stderr encoding to UTF-8
-	setlocale(LC_ALL, ".UTF8");
+	setlocale(LC_CTYPE, ".UTF8");
 
 	fflush(stdin);
 	_setmode(_fileno(stdin), _O_WTEXT);
-
-	
 
 	if (!PwmMain(argc))
 		return PwmGetError()->code;
