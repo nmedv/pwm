@@ -85,25 +85,25 @@ static int PwmParseArgs(int argc, char* argv[], pwm_args& pwm_args)
 		case 'f': pwm_args.force = 1; break;
 		case '?':
 			if (optopt)
-				return PwmSetError(PWM_BAD_ARGS, "unknown option '-%c'", optopt);
+				return PwmSetError(PWM_BAD_ARGS, "unknown option \"-%c\"", optopt);
 			else
 				return PwmSetError(PWM_BAD_ARGS, "unknown option \"%s\"", argv[optind - 1]);
 		case ':':
-			return PwmSetError(PWM_BAD_ARGS, "option '-%c' requires an argument", optopt);
+			return PwmSetError(PWM_BAD_ARGS, "option \"-%c\" requires an argument", optopt);
 		case '*':
 			if (!pwm_args.name)
 				pwm_args.name = argv[argind];
 			else if (!pwm_args.value)
 				pwm_args.value = argv[argind];
 			else
-				return PwmSetError(PWM_BAD_ARGS, "unknown no-option argument '-%s'", argv[argind]);
+				return PwmSetError(PWM_BAD_ARGS, "unknown no-option argument \"%s\"", argv[argind]);
 			break;
 		default: return 0;
 		}
 	}
 
 	if (!pwm_args.name)
-		return PwmSetError(PWM_BAD_ARGS, "'name' argument is required", pwm_usage);
+		return PwmSetError(PWM_BAD_ARGS, "\"name\" argument is required", pwm_usage);
 
 	if (!pwm_args.source)
 		pwm_args.source = (char*)"data.pw";
