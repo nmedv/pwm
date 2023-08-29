@@ -1,14 +1,8 @@
 #include <pwm/pwm.h>
-#include <pwm/pwm_getopt.h>
-#include <pwm/pwm_error.h>
-#include <pwm/pwm_console.h>
 
-#define PWM_UTF8
-
-#ifdef PWM_UTF8
-#include <io.h>
-#include <fcntl.h>
-#include <locale.h>
+#ifdef WIN32
+#include <Windows.h>
+#include <pwm/multibyte.h>
 #endif
 
 static const char* pwm_version = "pwm version 0.1 beta";
@@ -119,12 +113,29 @@ static inline int PwmPrintError()
 }
 
 
+void setstdinecho(bool enable)
+{
+#ifdef WIN32
+	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+	DWORD mode;
+	GetConsoleMode(hStdin, &mode);
+
+	if (!enable)
+		mode &= ~ENABLE_ECHO_INPUT;
+	else
+		mode |= ENABLE_ECHO_INPUT;
+
+	SetConsoleMode(hStdin, mode);
+#endif
+}
+
+
 static inline void PwmPasswordInput(char* out)
 {
 	setstdinecho(false);
 	fputs("Enter the password: ", stdout);
 
-#ifdef PWM_UTF8
+#ifdef WIN32
 	fgetmbs(out, 32, stdin);
 #else
 	fgets(out, 32, stdin);
@@ -137,7 +148,7 @@ static inline void PwmPasswordInput(char* out)
 
 int PwmMain(int argc, char** argv)
 {
-#ifdef PWM_UTF8
+#ifdef WIN32
 	char** _argv = mbargv();
 #else
 	char** _argv = argv;
@@ -206,7 +217,7 @@ int PwmMain(int argc, char** argv)
 	
 	delete password;
 
-#ifdef PWM_UTF8
+#ifdef WIN32
 	mbargv_free(argc, _argv);
 #endif
 
@@ -216,12 +227,8 @@ int PwmMain(int argc, char** argv)
 
 int main(int argc, char* argv[])
 {
-#ifdef PWM_UTF8
-	// Set stdout and stderr encoding to UTF-8
-	setlocale(LC_CTYPE, ".UTF8");
-
-	fflush(stdin);
-	_setmode(_fileno(stdin), _O_WTEXT);
+#ifdef WIN32
+	multibyte_init();
 #endif
 
 	if (!PwmMain(argc, argv))

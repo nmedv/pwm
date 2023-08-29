@@ -1,5 +1,6 @@
-#include <pwm/pwm.h>
-#include <pwm/pwm_error.h>
+#define PWM_CORE_EXPORT
+#include <pwm/error.h>
+// #include <pwm/pwm.h>
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
@@ -7,6 +8,8 @@
 #include <openssl/rand.h>
 
 #include <fstream>
+#include <vector>
+#include <map>
 
 
 #ifdef _DEBUG
@@ -42,6 +45,31 @@ static void _dumpmem(uint8_t* mem, int size, const char* title)
 #endif
 
 
+#ifdef __GNUC__
+#define PACK_START
+#define PACK_END   __attribute__((__packed__));
+#endif
+
+#ifdef _MSC_VER
+#define PACK_START __pragma(pack(push, 1))
+#define PACK_END   ; __pragma(pack(pop))
+#endif
+
+PACK_START struct pwm_file {
+	char      sigP;
+	char      sigW;
+	uint8_t   salt[8];
+	uint32_t  cipher_len;
+	uint8_t   cipher;
+} PACK_END
+
+enum PwmFileType : uint8_t
+{
+	PWM_FILE_TABLE,
+	PWM_FILE_TEXT
+};
+
+
 /*
 	We use AES with 256 bit key (16 byte cipher block).
 	So we need at least n + 16 (including \0) bytes to
@@ -53,70 +81,74 @@ static void _dumpmem(uint8_t* mem, int size, const char* title)
 
 #define PWM_HEADER_SIZE reinterpret_cast<size_t>(&(reinterpret_cast<pwm_file*>(0)->cipher))
 
-
-PwmFile::PwmFile()
+class PWM_SHARED PwmFile
 {
-	Resize(PWM_HEADER_SIZE);
-	data->sigP = 'P';
-	data->sigW = 'W';
-}
+public:
+	pwm_file* data;
 
-
-int PwmFile::Load(const char *fileName)
-{
-	// Open file
-	std::ifstream file(fileName, std::ios::binary);
-	if (!file.is_open())
-		return PwmSetError(PWM_NO_FILE, "can't open file \"%s\"", fileName);
-
-	// Read file header
-	Resize(PWM_HEADER_SIZE);
-	file.read(reinterpret_cast<char*>(data), PWM_HEADER_SIZE);
-	if (file.bad() || data->sigP != 'P' || data->sigW != 'W') // Check signature
+	PwmFile()
 	{
-		file.close();
-		return PwmSetError(PWM_BAD_FILE, "\"%s\" is not pwm data file", fileName);
+		Resize(PWM_HEADER_SIZE);
+		data->sigP = 'P';
+		data->sigW = 'W';
 	}
 
-	// Read cipher data
-	Resize(PWM_HEADER_SIZE + data->cipher_len);
-	file.read(reinterpret_cast<char*>(&data->cipher), data->cipher_len);
-	int success = file.good();
-	file.close();
 
-	if (!success)
-		return PwmSetError(PWM_BAD_FILE, "error while reading file \"%s\": data corrupted", fileName);
+	int Load(const char *fileName)
+	{
+		// Open file
+		std::ifstream file(fileName, std::ios::binary);
+		if (!file.is_open())
+			return PwmSetError(PWM_NO_FILE, "can't open file \"%s\"", fileName);
 
-	return 1;
-}
+		// Read file header
+		Resize(PWM_HEADER_SIZE);
+		file.read(reinterpret_cast<char*>(data), PWM_HEADER_SIZE);
+		if (file.bad() || data->sigP != 'P' || data->sigW != 'W') // Check signature
+		{
+			file.close();
+			return PwmSetError(PWM_BAD_FILE, "\"%s\" is not pwm data file", fileName);
+		}
 
+		// Read cipher data
+		Resize(PWM_HEADER_SIZE + data->cipher_len);
+		file.read(reinterpret_cast<char*>(&data->cipher), data->cipher_len);
+		int success = file.good();
+		file.close();
 
-int PwmFile::Save(const char *fileName)
-{
-	// Open file (or create file)
-	std::ofstream file(fileName, std::ios::binary);
+		if (!success)
+			return PwmSetError(PWM_BAD_FILE, "error while reading file \"%s\": data corrupted", fileName);
 
-	// Write data to file
-	file.write(reinterpret_cast<char*>(data), PWM_HEADER_SIZE + data->cipher_len);
-	int success = file.good();
-	file.close();
-
-	if (!success)
-		return PwmSetError(PWM_BAD_FILE, "error while writing file \"%s\"", fileName);
-
-	return 1;
-}
-
-
-void PwmFile::Resize(size_t size)
-{
-	dataRaw.resize(size);
-	data = reinterpret_cast<pwm_file*>(dataRaw.data());
-}
+		return 1;
+	}
 
 
-//PwmFileHandler::PwmFileHandler()
-//{ }
+	int Save(const char *fileName)
+	{
+		// Open file (or create file)
+		std::ofstream file(fileName, std::ios::binary);
+
+		// Write data to file
+		file.write(reinterpret_cast<char*>(data), PWM_HEADER_SIZE + data->cipher_len);
+		int success = file.good();
+		file.close();
+
+		if (!success)
+			return PwmSetError(PWM_BAD_FILE, "error while writing file \"%s\"", fileName);
+
+		return 1;
+	}
+
+
+	void Resize(size_t size)
+	{
+		dataRaw.resize(size);
+		data = reinterpret_cast<pwm_file*>(dataRaw.data());
+	}
+
+private:
+	std::vector<char> dataRaw;
+};
 
 
 /*
@@ -140,7 +172,7 @@ void PwmFile::Resize(size_t size)
 */
 
 
-void PwmFileHandler::Serialize(std::vector<uint8_t> &out, std::map<std::string, std::string> &in)
+PWM_SHARED void PwmSerialize(std::vector<uint8_t> &out, std::map<std::string, std::string> &in)
 {
 	// Find out the serialize size
 	size_t serializeSize = in.size() * 4 + sizeof(uint32_t);
@@ -170,12 +202,13 @@ void PwmFileHandler::Serialize(std::vector<uint8_t> &out, std::map<std::string, 
 }
 
 
-void PwmFileHandler::Deserialize(std::vector<uint8_t> &in, std::map<std::string, std::string> &out)
+PWM_SHARED void PwmDeserialize(std::vector<uint8_t> &in, std::map<std::string, std::string> &out)
 {
-	char* name;
-	char* value;
-	uint32_t tableSize = *reinterpret_cast<uint32_t*>(in.data());
-	uint8_t* table = in.data() + sizeof(uint32_t);
+	uint8_t* data = in.data();
+	char *name, *value;
+	
+	uint32_t tableSize = *reinterpret_cast<uint32_t*>(data);
+	uint8_t* table = data + sizeof(uint32_t);
 	uint8_t* data_ptr = table + tableSize;
 
 	for (uint32_t i = 0; i < tableSize; i += 2)
@@ -189,7 +222,7 @@ void PwmFileHandler::Deserialize(std::vector<uint8_t> &in, std::map<std::string,
 }
 
 
-int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char *password)
+PWM_SHARED int PwmEncrypt(std::vector<uint8_t> &in, PwmFile *file, const char *password)
 {
 	// Generate sault
 	RAND_bytes(file->data->salt, 8);
@@ -237,7 +270,7 @@ int PwmFileHandler::Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char 
 }
 
 
-int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char *password)
+PWM_SHARED int PwmDecrypt(std::vector<uint8_t> &out, PwmFile *file, const char *password)
 {
 	// Generate key and iv from password and sault
 	uint8_t* key = new uint8_t[48];
@@ -284,123 +317,137 @@ int PwmFileHandler::Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char
 	return 1;
 }
 
-
-Pwm::Pwm(void)
-	: is_loaded(false), has_changes(false)
-{ }
-
-
-Pwm::Pwm(const char *src, const char *password) : Pwm()
+class PWM_SHARED Pwm
 {
-	Load(src, password);
-}
+	bool is_loaded;
+	bool has_changes;
+	std::vector<uint8_t> data;
+	std::map<std::string, std::string> entries;
+	PwmFile file;
+
+public:
+	Pwm(void)
+		: is_loaded(false), has_changes(false)
+	{ }
 
 
-int Pwm::Load(const char *src, const char *password)
-{
-	// Read file
-	if (!file.Load(src))
-		return 0;
-
-	// Decrypt data
-	if (!PwmFileHandler::Decrypt(data, &file, password))
-		return PwmSetError(PWM_BAD_DECRYPT, "wrong password or data corrupted");
-
-	// Deserialize data
-	PwmFileHandler::Deserialize(data, entries);
-
-	is_loaded = true;
-	return 1;
-}
-
-
-bool Pwm::Loaded(void)
-{
-	return is_loaded;
-}
-
-
-int Pwm::Save(const char *fname, const char *password)
-{
-	// Can't save empty data
-	if (entries.size() == 0)
-		return PwmSetError(PWM_BAD_DATA, "no data to save");
-
-	// Create new file
-	if (!is_loaded)
-		file = PwmFile();
-
-	// Serialize data
-	if (has_changes)
-		PwmFileHandler::Serialize(data, entries);
-
-	// Encrypt data
-	if (!PwmFileHandler::Encrypt(data, &file, password))
-		return PwmSetError(PWM_BAD_ENCRYPT, "can't encrypt data");
-
-	// Save data to file
-	int res = file.Save(fname);
-
-	is_loaded = false;
-	has_changes = false;
-
-	if (!res)
-		return 0;
-
-	return 1;
-}
-
-
-int Pwm::Set(std::string &name, std::string &value)
-{
-	if (name.size() > 256 || value.size() > 256)
-		return PwmSetError(PWM_BAD_NAME, "string value is too large");
-
-	if (Has(name))
-		return PwmSetError(PWM_BAD_NAME, "entry with name \"%s\" already exists", name.c_str());
-	else
+	Pwm(const char *src, const char *password) : Pwm()
 	{
-		entries[name] = value;
-		has_changes = true;
+		Load(src, password);
+	}
+
+
+	int Load(const char *src, const char *password)
+	{
+		// Read file
+		if (!file.Load(src))
+			return 0;
+
+		// Decrypt data
+		if (!PwmDecrypt(data, &file, password))
+			return PwmSetError(PWM_BAD_DECRYPT, "wrong password or data corrupted");
+
+		// Deserialize data
+		PwmDeserialize(data, entries);
+
+		is_loaded = true;
 		return 1;
 	}
-}
 
 
-int Pwm::Has(std::string &name)
-{
-	return !(entries.find(name) == entries.end());
-}
-
-
-int Pwm::Remove(std::string &name)
-{
-	if (entries.size() == 1)
-		return PwmSetError(PWM_BAD_NAME, "can't remove last entry with name \"%s\"", name.c_str());
-
-	if (!entries.erase(name))
-		return PwmSetError(PWM_BAD_NAME, "can't remove entry with name \"%s\"", name.c_str());
-	else
+	bool Loaded(void)
 	{
-		has_changes = true;
+		return is_loaded;
+	}
+
+
+	int Save(const char *fname, const char *password)
+	{
+		// Can't save empty data
+		if (entries.size() == 0)
+			return PwmSetError(PWM_BAD_DATA, "no data to save");
+
+		// Create new file
+		if (!is_loaded)
+			file = PwmFile();
+
+		// Serialize data
+		if (has_changes)
+			PwmSerialize(data, entries);
+
+		// Encrypt data
+		if (!PwmEncrypt(data, &file, password))
+			return PwmSetError(PWM_BAD_ENCRYPT, "can't encrypt data");
+
+		// Save data to file
+		int res = file.Save(fname);
+
+		is_loaded = false;
+		has_changes = false;
+
+		if (!res)
+			return 0;
+
 		return 1;
 	}
-}
 
 
-const std::map<std::string, std::string>* Pwm::Get(void)
-{
-	return &entries;
-}
-
-
-const std::string* Pwm::Get(std::string &name)
-{
-	if (Has(name))
-		return &entries[name];
-	else
+	int Set(std::string &name, std::string &value)
 	{
-		PwmSetError(PWM_BAD_NAME, "can't find entry with name \"%s\"", name.c_str());
-		return reinterpret_cast<std::string*>(0);
-	}		
+		if (name.size() > 256 || value.size() > 256)
+			return PwmSetError(PWM_BAD_NAME, "string value is too large");
+
+		if (Has(name))
+			return PwmSetError(PWM_BAD_NAME, "entry with name \"%s\" already exists", name.c_str());
+		else
+		{
+			entries[name] = value;
+			has_changes = true;
+			return 1;
+		}
+	}
+
+
+	int Has(std::string &name)
+	{
+		return !(entries.find(name) == entries.end());
+	}
+
+
+	int Remove(std::string &name)
+	{
+		if (entries.size() == 1)
+			return PwmSetError(PWM_BAD_NAME, "can't remove last entry with name \"%s\"", name.c_str());
+
+		if (!entries.erase(name))
+			return PwmSetError(PWM_BAD_NAME, "can't remove entry with name \"%s\"", name.c_str());
+		else
+		{
+			has_changes = true;
+			return 1;
+		}
+	}
+
+
+	const std::map<std::string, std::string>* Get(void)
+	{
+		return &entries;
+	}
+
+
+	const std::string* Get(std::string &name)
+	{
+		if (Has(name))
+			return &entries[name];
+		else
+		{
+			PwmSetError(PWM_BAD_NAME, "can't find entry with name \"%s\"", name.c_str());
+			return reinterpret_cast<std::string*>(0);
+		}		
+	}
+};
+
+PWM_SHARED Pwm* CreatePwmInstance(const char *src, const char *password)
+{
+	return new Pwm(src, password);
 }

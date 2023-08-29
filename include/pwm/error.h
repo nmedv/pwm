@@ -1,6 +1,8 @@
 #ifndef PWM_ERROR
 #define PWM_ERROR
 
+#include "shared.h"
+
 #define PWM_ERROR_MAX_STR_SIZE  256
 #define PWM_ERROR_STACK_SIZE    16
 
@@ -23,8 +25,8 @@ typedef struct {
 extern "C" {
 #endif
 
-int PwmSetError(int code, const char *format, ...);
-const pwm_error* PwmGetError(void);
+PWM_SHARED int PwmSetError(int code, const char *format, ...);
+PWM_SHARED const pwm_error* PwmGetError(void);
 
 #ifdef __cplusplus
 }

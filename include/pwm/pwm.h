@@ -1,10 +1,14 @@
 #ifndef PWM_H
 #define PWM_H
 
-#include <cstdint>
+#include "getopt.h"
+#include "error.h"
+
 #include <string>
 #include <map>
 #include <vector>
+
+#include "shared.h"
 
 
 struct pwm_args
@@ -17,54 +21,52 @@ struct pwm_args
 	int		force;
 };
 
-
 #ifdef __GNUC__
-#define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
+#define PACK_START
+#define PACK_END   __attribute__((__packed__));
 #endif
 
 #ifdef _MSC_VER
-#define PACK( __Declaration__ ) __pragma(pack(push, 1)) __Declaration__ __pragma(pack(pop))
+#define PACK_START __pragma(pack(push, 1))
+#define PACK_END   ; __pragma(pack(pop))
 #endif
 
-PACK(
-struct pwm_file {
-	char		sigP;
-	char		sigW;
-	uint8_t		salt[8];
-	uint32_t	cipher_len;
-	uint8_t		cipher;
-};)
+PACK_START struct pwm_file {
+	char      sigP;
+	char      sigW;
+	uint8_t   salt[8];
+	uint32_t  cipher_len;
+	uint8_t   cipher;
+} PACK_END
+
+enum PwmFileType : uint8_t
+{
+	PWM_FILE_TABLE,
+	PWM_FILE_TEXT
+};
 
 
-class PwmFile
+class PWM_SHARED PwmFile
 {
 public:
-	pwm_file *data;
+	pwm_file* data;
 
 	PwmFile();
-	int Load(const char* fileName);
-	int Save(const char* fileName);
+	int Load(const char *fileName);
+	int Save(const char *fileName);
 	void Resize(size_t size);
 
 private:
 	std::vector<char> dataRaw;
 };
 
-
-class PwmFileHandler
-{
-public:
-	// PwmFileHandler();
-	//~PwmFileHandler();
-
-	static void Serialize(std::vector<uint8_t> &out, std::map<std::string, std::string> &in);
-	static void Deserialize(std::vector<uint8_t> &in, std::map<std::string, std::string> &out);
-	static int Encrypt(std::vector<uint8_t> &in, PwmFile *file, const char *password);
-	static int Decrypt(std::vector<uint8_t> &out, PwmFile *file, const char *password);
-};
+PWM_SHARED void PwmSerialize(std::vector<uint8_t> &out, std::map<std::string, std::string> &in);
+PWM_SHARED void PwmDeserialize(std::vector<uint8_t> &in, std::map<std::string, std::string> &out);
+PWM_SHARED int PwmEncrypt(std::vector<uint8_t> &in, PwmFile *file, const char *password);
+PWM_SHARED int PwmDecrypt(std::vector<uint8_t> &out, PwmFile *file, const char *password);
 
 
-class Pwm
+class PWM_SHARED Pwm
 {
 public:
 	Pwm(void);
@@ -103,6 +105,9 @@ private:
 
 	PwmFile file;
 };
+
+
+PWM_SHARED Pwm* CreatePwmInstance(const char *src, const char *password);
 
 
 #endif

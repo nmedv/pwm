@@ -1,10 +1,12 @@
-#include <pwm/pwm_error.h>
+#define PWM_CORE_EXPORT
+#include <pwm/error.h>
+
 #include <stdarg.h>
 #include <stdio.h>
 
 static pwm_error err;
 
-int PwmSetError(int code, const char *format, ...)
+PWM_SHARED int PwmSetError(int code, const char *format, ...)
 {
 	err.code = code;
 
@@ -19,7 +21,7 @@ int PwmSetError(int code, const char *format, ...)
 	return 0;
 }
 
-const pwm_error* PwmGetError(void)
+PWM_SHARED const pwm_error* PwmGetError(void)
 {
 	return &err;
 }

@@ -1,30 +1,12 @@
+#include <pwm/multibyte.h>
+
 #include <Windows.h>
 #include <stdio.h>
-#include <stdbool.h>
-
-
-/* Use null terminated strings for the correct operation of this function!!! */
-#define SIZE_IN_WCHAR(str) \
-	MultiByteToWideChar(CP_UTF8, 0, str, -1, 0, 0)
-
-
-/* Use null terminated strings for the correct operation of this function!!! */
-#define SIZE_IN_CHAR(str) \
-	WideCharToMultiByte(CP_UTF8, 0, str, -1, 0, 0, 0, 0)
-
-
-/* Can write a terminal zero if it fits */
-#define WCHAR_TO_MULTIBYTE(str, buffer, newSz) \
-	WideCharToMultiByte(CP_UTF8, 0, str, -1, buffer, newSz, 0, 0)
-
-
-/* Can write a terminal zero if it fits */
-#define MULTIBYTE_TO_WCHAR(str, wstr, wstrl) \
-	MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, wstrl)
-
+#include <io.h>
+#include <fcntl.h>
+#include <locale.h>
 
 #define INPUT_BUFFER_SIZE 4096
-
 
 char** mbargv(void)
 {
@@ -70,16 +52,11 @@ char* fgetmbs(char* buffer, int bufferCount, FILE* stream)
 }
 
 
-void setstdinecho(bool enable)
+void multibyte_init()
 {
-	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-	DWORD mode;
-	GetConsoleMode(hStdin, &mode);
+	// Set stdout and stderr encoding to UTF-8
+	setlocale(LC_CTYPE, ".UTF8");
 
-	if (!enable)
-		mode &= ~ENABLE_ECHO_INPUT;
-	else
-		mode |= ENABLE_ECHO_INPUT;
-
-	SetConsoleMode(hStdin, mode);
+	fflush(stdin);
+	_setmode(_fileno(stdin), _O_WTEXT);
 }

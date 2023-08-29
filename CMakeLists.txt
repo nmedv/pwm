@@ -2,11 +2,7 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(pwm)
 
-file(GLOB_RECURSE SRCS
-	"${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
-	"${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-
-if(MSVC)
+if (MSVC)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 	if( ${CMAKE_SYSTEM_VERSION} EQUAL 6.1 ) # Windows 7
@@ -15,24 +11,21 @@ if(MSVC)
 	endif()
 endif()
 
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+
+# Pwm core
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src/core")
+
+set(PWM_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/getopt.c")
 if (WIN32)
-	set(LIBS
-		"${CMAKE_CURRENT_SOURCE_DIR}/lib/win32/libcrypto.lib"
-		ws2_32.lib
-		crypt32.lib)
+	set(PWM_SRCS ${PWM_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/src/multibyte.c")
 endif()
 
+add_executable(pwm "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp" ${PWM_SRCS})
+target_link_libraries(pwm core)
 
-# if (MINGW)
-	# set(CMAKE_EXE_LINKER_FLAGS -static)
-# endif()
+add_executable(pwmgui WIN32 "${CMAKE_CURRENT_SOURCE_DIR}/src/main_gui.cpp" ${PWM_SRCS})
+target_link_libraries(pwmgui core)
 
-add_executable(${PROJECT_NAME} ${SRCS})
-
-target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-
-# Link libcrypto library
-target_link_libraries(${PROJECT_NAME} ${LIBS})
-
-
-install(TARGETS ${PROJECT_NAME})
+install(TARGETS core pwm pwmgui)
