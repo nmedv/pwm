@@ -1,0 +1,65 @@
+{
+	"version": 4,
+	"include": [ "base.json" ],
+	"configurePresets": [
+		{
+			"name": "gcc",
+			"inherits": "base",
+			"hidden": true,
+			"generator": "MinGW Makefiles",
+			"cacheVariables": {
+				"CMAKE_MAKE_PROGRAM": "mingw32-make",
+				"CMAKE_C_COMPILER": "gcc",
+				"CMAKE_CXX_COMPILER": "g++"
+			}
+		},
+		{
+			"name": "gcc-win32-debug",
+			"inherits": "gcc",
+			"displayName": "GCC x86 Debug",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "Win32"
+			}
+		},
+		{
+			"name": "gcc-win32-release",
+			"inherits": "gcc",
+			"displayName": "GCC x86 Release",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "Win32"
+			}
+		},
+		{
+			"name": "gcc-x64-debug",
+			"inherits": "gcc",
+			"displayName": "GCC x86_64 Debug",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "x64"
+			}
+		},
+		{
+			"name": "gcc-x64-release",
+			"inherits": "gcc",
+			"displayName": "GCC x86_64 Release",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "x64"
+			}
+		}
+	]
+}

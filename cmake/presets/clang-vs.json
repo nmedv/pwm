@@ -1,0 +1,65 @@
+{
+	"version": 4,
+	"include": [ "base.json" ],
+	"configurePresets": [
+		{
+			"name": "clang-vs",
+			"inherits": "base",
+			"hidden": true,
+			"generator": "Visual Studio 17 2022",
+			"toolset": "ClangCL",
+			"vendor": {
+				"microsoft.com/VisualStudioSettings/CMake/1.0": {
+					"intelliSenseMode": "windows-clang-x64",
+					"hostOS": [
+						"Windows"
+					]
+				}
+			}
+		},
+		{
+			"name": "clang-vs-win32",
+			"inherits": "clang-vs",
+			"displayName": "VS Clang Win32",
+			"architecture": {
+				"strategy": "external",
+				"value": "Win32"
+			}
+		},
+		{
+			"name": "clang-vs-x64",
+			"inherits": "clang-vs",
+			"displayName": "VS Clang x64",
+			"architecture": {
+				"strategy": "external",
+				"value": "x64"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "clang-vs-win32-debug",
+			"displayName": "Debug",
+			"configurePreset": "clang-vs-win32",
+			"configuration": "Debug"
+		},
+		{
+			"name": "clang-vs-win32-release",
+			"displayName": "Release",
+			"configurePreset": "clang-vs-win32",
+			"configuration": "Release"
+		},
+		{
+			"name": "clang-vs-x64-debug",
+			"displayName": "Debug",
+			"configurePreset": "clang-vs-x64",
+			"configuration": "Debug"
+		},
+		{
+			"name": "clang-vs-x64-release",
+			"displayName": "Release",
+			"configurePreset": "clang-vs-x64",
+			"configuration": "Release"
+		}
+	]
+}

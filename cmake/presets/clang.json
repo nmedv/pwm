@@ -1,0 +1,65 @@
+{
+	"version": 4,
+	"include": [ "base.json" ],
+	"configurePresets": [
+		{
+			"name": "clang",
+			"inherits": "base",
+			"hidden": true,
+			"generator": "MinGW Makefiles",
+			"cacheVariables": {
+				"CMAKE_MAKE_PROGRAM": "mingw32-make",
+				"CMAKE_C_COMPILER": "clang",
+				"CMAKE_CXX_COMPILER": "clang++"
+			}
+		},
+		{
+			"name": "clang-win32-debug",
+			"inherits": "clang",
+			"displayName": "Clang x86 Debug",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "Win32"
+			}
+		},
+		{
+			"name": "clang-win32-release",
+			"inherits": "clang",
+			"displayName": "Clang x86 Release",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "Win32"
+			}
+		},
+		{
+			"name": "clang-x64-debug",
+			"inherits": "clang",
+			"displayName": "Clang x86_64 Debug",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "x64"
+			}
+		},
+		{
+			"name": "clang-x64-release",
+			"inherits": "clang",
+			"displayName": "Clang x86_64 Release",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			},
+			"architecture": {
+				"strategy": "external",
+				"value": "x64"
+			}
+		}
+	]
+}

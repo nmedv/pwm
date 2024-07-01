@@ -1,62 +1,9 @@
 {
-	"version": 3,
-	"configurePresets": [
-		{
-			"name": "msvc",
-			"binaryDir": "${sourceDir}/build/${presetName}",
-			"installDir": "${sourceDir}/install/${presetName}",
-			"hidden": true,
-			"generator": "Visual Studio 17 2022"
-		},
-		{
-			"name": "msvc-win32",
-			"inherits": "msvc",
-			"displayName": "Visual C/C++ Win32",
-			"cacheVariables": {
-				"CMAKE_GENERATOR_PLATFORM": "Win32"
-			},
-			"architecture": {
-				"strategy": "external",
-				"value": "Win32"
-			}
-		},
-		{
-			"name": "msvc-x64",
-			"inherits": "msvc",
-			"displayName": "Visual C/C++ x64",
-			"cacheVariables": {
-				"CMAKE_GENERATOR_PLATFORM": "x64"
-			},
-			"architecture": {
-				"strategy": "external",
-				"value": "x64"
-			}
-		}
-	],
-	"buildPresets": [
-		{
-			"name": "msvc-win32-debug",
-			"displayName": "Debug",
-			"configurePreset": "msvc-win32",
-			"configuration": "Debug"
-		},
-		{
-			"name": "msvc-win32-release",
-			"displayName": "Release",
-			"configurePreset": "msvc-win32",
-			"configuration": "Release"
-		},
-		{
-			"name": "msvc-x64-debug",
-			"displayName": "Debug",
-			"configurePreset": "msvc-x64",
-			"configuration": "Debug"
-		},
-		{
-			"name": "msvc-x64-release",
-			"displayName": "Release",
-			"configurePreset": "msvc-x64",
-			"configuration": "Release"
-		}
+	"version": 4,
+	"include": [
+		"cmake/presets/msvc.json",
+		"cmake/presets/clang.json",
+		"cmake/presets/clang-vs.json",
+		"cmake/presets/gcc.json"
 	]
 }

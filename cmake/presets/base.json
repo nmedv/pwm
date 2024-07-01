@@ -1,0 +1,11 @@
+{
+	"version": 4,
+	"configurePresets": [
+		{
+			"name": "base",
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"installDir": "${sourceDir}/install/${presetName}",
+			"hidden": true
+		}
+	]
+}

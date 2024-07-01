@@ -1,6 +1,5 @@
-build
-temp
-.vs
 .vscode
-data.pw
+build
 install
+temp
+data.pw
